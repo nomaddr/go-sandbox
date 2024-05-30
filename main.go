@@ -1,9 +1,6 @@
 package main
 
 import (
-	"math/rand"
-	"time"
-
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
@@ -15,13 +12,6 @@ const (
 type Segment struct {
 	Position rl.Vector2
 	Speed    float32
-}
-
-type Enemy struct {
-	Head        rl.Vector2
-	Segments    []Segment
-	Speed       float32
-	SegmentDist float32
 }
 
 type Player struct {
@@ -37,10 +27,11 @@ var (
 	player   Player
 	mousePos rl.Vector2
 	enemy    *Enemy
+	cam      rl.Camera2D
 )
 
 func main() {
-	rand.New(rand.NewSource(time.Now().UnixNano()))
+	//	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	//	game := Game{}
 	//	game.Init(false)
@@ -59,71 +50,19 @@ func main() {
 	rl.CloseWindow()
 }
 
-// #############
-// Enemy Methods
-// #############
-func NewEnemy(numSegments int, speed float32, segmentDist float32) *Enemy {
-	segments := make([]Segment, numSegments)
-	for i := 0; i < numSegments; i++ {
-		segments[i] = Segment{Position: rl.Vector2{X: -segmentDist * float32(i), Y: 0}}
-	}
-	return &Enemy{
-		Head:        rl.Vector2{X: 400, Y: 225},
-		Segments:    segments,
-		Speed:       speed,
-		SegmentDist: segmentDist,
-	}
-}
-
-func (e *Enemy) Update(target rl.Vector2) {
-	// Move the head towards the target
-	if rl.Vector2Distance(e.Head, target) > e.Speed*rl.GetFrameTime() {
-		e.Head = rl.Vector2MoveTowards(e.Head, target, e.Speed*rl.GetFrameTime())
-	}
-
-	// Update each segment to follow the previous one
-	for i := range e.Segments {
-		if i == 0 {
-			// The first segment follows the head
-			if rl.Vector2Distance(e.Segments[i].Position, e.Head) > e.SegmentDist {
-				e.Segments[i].Position = rl.Vector2MoveTowards(e.Segments[i].Position, e.Head, e.Segments[i].Speed*rl.GetFrameTime())
-			}
-		} else {
-			// Each segment follows the previous segment
-			if rl.Vector2Distance(e.Segments[i].Position, e.Segments[i-1].Position) > e.SegmentDist {
-				e.Segments[i].Position = rl.Vector2MoveTowards(e.Segments[i].Position, e.Segments[i-1].Position, e.Segments[i].Speed*rl.GetFrameTime())
-			}
-		}
-	}
-}
-
-func (e *Enemy) Draw() {
-	rl.DrawCircleV(e.Head, 20, rl.Maroon)
-	for i := 0; i < len(e.Segments); i++ {
-		rl.DrawCircleV(e.Segments[i].Position, 14, rl.Maroon)
-		switch i {
-		case 0:
-			rl.DrawLineEx(e.Segments[i].Position, e.Head, 10, rl.Maroon)
-		default:
-			rl.DrawLineEx(e.Segments[i].Position, e.Segments[i-1].Position, 10, rl.Maroon)
-		}
-	}
-}
-
 // ##############
 // Player Methods
 // ##############
 
-func (p *Player) Init(length int) {
+func (p *Player) init(length int) {
 	p.pos = rl.NewVector2(float32(screenWidth)/2, float32(screenHeight)/2)
 	p.isMoving = false
 	p.speed = 4
 	p.length = length
 
-	p.segments = make([]rl.Vector2, p.length)
 }
 
-func (p *Player) Shoot() {
+func (p *Player) shoot() {
 
 }
 
@@ -133,11 +72,13 @@ func (p *Player) Shoot() {
 
 func Init() {
 	player = Player{}
-	player.Init(5)
+	player.init(5)
 
-	enemy = NewEnemy(5, 80, 50)
+	enemy = NewEnemy(5, 200, 50)
 
 	mousePos = rl.Vector2{X: float32(screenWidth) / 2, Y: float32(screenHeight) / 2}
+
+	cam = rl.NewCamera2D(rl.NewVector2(screenWidth/2, screenHeight/2), player.pos, 0, 1)
 
 }
 
@@ -164,10 +105,11 @@ func Input() {
 		player.pos.X -= player.speed
 
 	}
-	if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+	if rl.IsMouseButtonDown(rl.MouseLeftButton) {
 		mousePos = rl.GetMousePosition()
 	}
 	if rl.IsKeyPressed(rl.KeySpace) {
+
 	}
 
 }
@@ -178,7 +120,7 @@ func Input() {
 //
 // ######################
 func Update() {
-	enemy.Update(mousePos)
+	enemy.update(mousePos)
 }
 
 // ##################
@@ -188,10 +130,14 @@ func Update() {
 // ##################
 func Draw() {
 	rl.BeginDrawing()
-	rl.ClearBackground(rl.DarkGray)
+	rl.BeginMode2D(cam)
+	rl.ClearBackground(rl.Gray)
 
-	rl.DrawCircle(int32(player.pos.X), int32(player.pos.Y), 30, rl.Maroon)
-	enemy.Draw()
+	rect := rl.NewRectangle(player.pos.X, player.pos.Y, 10, 20)
+	rl.DrawRectangleRounded(rect, 0.5, 1, rl.Purple) // rl.DrawCircle(int32(player.pos.X), int32(player.pos.Y), 10, rl.DarkPurple)
+	enemy.draw()
+	//drawFunc()
 
+	rl.EndMode2D()
 	rl.EndDrawing()
 }
