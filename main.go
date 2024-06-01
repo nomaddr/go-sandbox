@@ -1,143 +1,238 @@
 package main
 
 import (
+	"fmt"
+	"math"
+	"math/rand"
+
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 const (
 	screenWidth  = 800
-	screenHeight = 640
+	screenHeight = 450
 )
 
-type Segment struct {
-	Position rl.Vector2
-	Speed    float32
+type GameObject interface {
+	Update()
+	Draw()
 }
 
 type Player struct {
-	pos      rl.Vector2
-	dir      rl.Vector2
-	segments []rl.Vector2
-	isMoving bool
+	position rl.Vector2
 	speed    float32
-	length   int
+	health   int
+	weapon   int
+	timer    float32
 }
 
-var (
-	player   Player
-	mousePos rl.Vector2
-	enemy    *Enemy
-	cam      rl.Camera2D
-)
+type Enemy struct {
+	position rl.Vector2
+	speed    float32
+	health   int
+}
+
+type Projectile struct {
+	position rl.Vector2
+	velocity rl.Vector2
+	speed    float32
+	radius   float32
+}
+
+var player *Player
+var enemies []*Enemy
+var projectiles []*Projectile
 
 func main() {
-	//	rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	//	game := Game{}
-	//	game.Init(false)
-	Init()
-
-	rl.InitWindow(screenWidth, screenHeight, "sandbox")
+	rl.InitWindow(screenWidth, screenHeight, "Top-Down Shooter")
 	rl.SetTargetFPS(60)
 
-	for !rl.WindowShouldClose() {
+	player = &Player{
+		position: rl.NewVector2(screenWidth/2, screenHeight/2),
+		speed:    200,
+		health:   100,
+		weapon:   1,
+		timer:    0,
+	}
 
-		Input()
-		Update()
-		Draw()
+	// Spawn initial enemies
+	for i := 0; i < 5; i++ {
+		enemies = append(enemies, NewEnemy())
+	}
+
+	for !rl.WindowShouldClose() {
+		update()
+		draw()
 	}
 
 	rl.CloseWindow()
 }
 
-// ##############
-// Player Methods
-// ##############
-
-func (p *Player) init(length int) {
-	p.pos = rl.NewVector2(float32(screenWidth)/2, float32(screenHeight)/2)
-	p.isMoving = false
-	p.speed = 4
-	p.length = length
-
-}
-
-func (p *Player) shoot() {
-
-}
-
-// ######################
-// Init - Initialize game
-// ######################
-
-func Init() {
-	player = Player{}
-	player.init(5)
-
-	enemy = NewEnemy(5, 200, 50)
-
-	mousePos = rl.Vector2{X: float32(screenWidth) / 2, Y: float32(screenHeight) / 2}
-
-	cam = rl.NewCamera2D(rl.NewVector2(screenWidth/2, screenHeight/2), player.pos, 0, 1)
-
-}
-
-// ####################
-//
-//	Input - Game input
-//
-// ####################
-func Input() {
-	// control
-	if rl.IsKeyDown(rl.KeyW) {
-		player.pos.Y -= player.speed
-
+func NewEnemy() *Enemy {
+	return &Enemy{
+		position: rl.NewVector2(float32(rand.Intn(screenWidth)), float32(rand.Intn(screenHeight))),
+		speed:    100,
+		health:   20,
 	}
-	if rl.IsKeyDown(rl.KeyS) {
-		player.pos.Y += player.speed
+}
 
-	}
+func (p *Player) Update() {
 	if rl.IsKeyDown(rl.KeyD) {
-		player.pos.X += player.speed
-
+		p.position.X += p.speed * rl.GetFrameTime()
 	}
 	if rl.IsKeyDown(rl.KeyA) {
-		player.pos.X -= player.speed
+		p.position.X -= p.speed * rl.GetFrameTime()
+	}
+	if rl.IsKeyDown(rl.KeyW) {
+		p.position.Y -= p.speed * rl.GetFrameTime()
+	}
+	if rl.IsKeyDown(rl.KeyS) {
+		p.position.Y += p.speed * rl.GetFrameTime()
+	}
 
+	if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
+		if player.timer < 2 {
+			player.timer += rl.GetFrameTime()
+			fmt.Println(player.timer)
+		}
 	}
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) {
-		mousePos = rl.GetMousePosition()
+	if rl.IsMouseButtonReleased(rl.MouseLeftButton) {
+		fmt.Printf("shot: %f", player.timer)
+		p.Shoot()
+		player.timer = 0
 	}
-	if rl.IsKeyPressed(rl.KeySpace) {
+}
 
-	}
+func calcSpeed(f int) {
 
 }
 
-// ######################
-//
-//	Update - Update game
-//
-// ######################
-func Update() {
-	enemy.update(mousePos)
+func (p *Player) Draw() {
+	rl.DrawCircleV(p.position, 20, rl.Blue)
 }
 
-// ##################
-//
-//	Draw - Draw game
-//
-// ##################
-func Draw() {
+func (p *Player) Shoot() {
+	mousePos := rl.GetMousePosition()
+	direction := rl.Vector2Subtract(mousePos, p.position)
+	distance := float32(math.Sqrt(float64(direction.X*direction.X + direction.Y*direction.Y)))
+	var weaponSpeed float32
+	switch p.weapon {
+	case 0:
+		weaponSpeed = 1 // no weapon
+	case 1:
+		weaponSpeed = 30 + player.timer*2 // charged weapon
+	default:
+		weaponSpeed = 30
+	}
+	direction = rl.Vector2Scale(direction, player.timer)
+	fmt.Println(distance, " ", weaponSpeed)
+	projectile := &Projectile{
+		position: p.position,
+		velocity: direction,
+		radius:   5,
+	}
+	projectiles = append(projectiles, projectile)
+}
+
+func (e *Enemy) moveTo(pos rl.Vector2) {
+	direction := rl.Vector2Subtract(pos, e.position)
+	distance := float32(math.Sqrt(float64(direction.X*direction.X + direction.Y*direction.Y)))
+	direction = rl.Vector2Scale(direction, e.speed*rl.GetFrameTime()/distance)
+	e.position = rl.Vector2Add(e.position, direction)
+}
+
+func (e *Enemy) Update() {
+	e.moveTo(player.position)
+}
+
+func (e *Enemy) Draw() {
+	rl.DrawCircleV(e.position, 15, rl.Red)
+}
+
+func (e *Enemy) IsCollidingWithProjectile(p *Projectile) bool {
+	return rl.CheckCollisionCircles(e.position, 15, p.position, p.radius)
+}
+
+func (p *Projectile) Update() {
+	p.position = rl.Vector2Add(p.position, p.velocity)
+}
+
+func (p *Projectile) Draw() {
+	rl.DrawCircleV(p.position, p.radius, rl.Black)
+}
+
+func update() {
+	player.Update()
+
+	for i := 0; i < len(enemies); i++ {
+		enemies[i].Update()
+	}
+
+	for i := 0; i < len(projectiles); i++ {
+		projectiles[i].Update()
+	}
+
+	checkCollisions()
+}
+
+func checkCollisions() {
+	// Check player-enemy collisions
+	for i := range enemies {
+		if rl.CheckCollisionCircles(player.position, 20, enemies[i].position, 15) {
+			player.health -= 10
+			if player.health <= 0 {
+				player.health = 0
+				// Handle player death (e.g., reset game, show game over screen)
+			}
+		}
+	}
+
+	// Check projectile-enemy collisions
+	for i := 0; i < len(projectiles); i++ {
+		for j := 0; j < len(enemies); j++ {
+			if enemies[j].IsCollidingWithProjectile(projectiles[i]) {
+				// Remove projectile
+				projectiles = append(projectiles[:i], projectiles[i+1:]...)
+				i--
+
+				// Damage enemy
+				enemies[j].health -= 10
+				if enemies[j].health <= 0 {
+					// Remove enemy
+					enemies = append(enemies[:j], enemies[j+1:]...)
+					j--
+				}
+				break
+			}
+		}
+	}
+
+	// Remove projectiles that go off-screen
+	for i := 0; i < len(projectiles); i++ {
+		if projectiles[i].position.X < 0 || projectiles[i].position.X > screenWidth ||
+			projectiles[i].position.Y < 0 || projectiles[i].position.Y > screenHeight {
+			projectiles = append(projectiles[:i], projectiles[i+1:]...)
+			i--
+		}
+	}
+}
+
+func draw() {
 	rl.BeginDrawing()
-	rl.BeginMode2D(cam)
-	rl.ClearBackground(rl.Gray)
+	rl.ClearBackground(rl.DarkGray)
 
-	rect := rl.NewRectangle(player.pos.X, player.pos.Y, 10, 20)
-	rl.DrawRectangleRounded(rect, 0.5, 1, rl.Purple) // rl.DrawCircle(int32(player.pos.X), int32(player.pos.Y), 10, rl.DarkPurple)
-	enemy.draw()
-	//drawFunc()
+	player.Draw()
 
-	rl.EndMode2D()
+	for _, enemy := range enemies {
+		enemy.Draw()
+	}
+
+	for _, projectile := range projectiles {
+		projectile.Draw()
+	}
+
+	// Draw player health
+	rl.DrawText(fmt.Sprintf("Health: %d", player.health), 10, 10, 20, rl.Black)
+
 	rl.EndDrawing()
 }
