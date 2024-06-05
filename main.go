@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -11,6 +12,12 @@ import (
 const (
 	screenWidth  = 800
 	screenHeight = 450
+)
+
+var (
+	black    = rl.NewColor(13, 0, 26, 1)
+	bgX, bgY []float32
+	circles  int
 )
 
 type GameObject interface {
@@ -39,6 +46,11 @@ type Projectile struct {
 	radius   float32
 }
 
+type Particle struct {
+	tex rl.Texture2D
+	pos rl.Vector2
+}
+
 var player *Player
 var enemies []*Enemy
 var projectiles []*Projectile
@@ -59,13 +71,24 @@ func main() {
 	for i := 0; i < 5; i++ {
 		enemies = append(enemies, NewEnemy())
 	}
-
+	circles = 100
+	bgX, bgY = randomCoords(circles)
 	for !rl.WindowShouldClose() {
 		update()
 		draw()
 	}
 
 	rl.CloseWindow()
+}
+
+func spawnParticle(x, y, dur, size int32, count int, pbspeed float32) {
+	pbspeed = pbspeed * float32(dur)
+	t := time.NewTimer(time.Duration(pbspeed))
+	<-t.C
+	for i := 0; i < count; i++ {
+		fmt.Println(pbspeed)
+		rl.DrawRectangle(x+(rand.Int31()%10), y+(rand.Int31()%10), size, size, rl.Orange)
+	}
 }
 
 func NewEnemy() *Enemy {
@@ -101,10 +124,6 @@ func (p *Player) Update() {
 		p.Shoot()
 		player.timer = 0
 	}
-}
-
-func calcSpeed(f int) {
-
 }
 
 func (p *Player) Draw() {
@@ -158,7 +177,7 @@ func (p *Projectile) Update() {
 }
 
 func (p *Projectile) Draw() {
-	rl.DrawCircleV(p.position, p.radius, rl.Black)
+	rl.DrawCircleV(p.position, p.radius, rl.Orange)
 }
 
 func update() {
@@ -199,6 +218,7 @@ func checkCollisions() {
 				enemies[j].health -= 10
 				if enemies[j].health <= 0 {
 					// Remove enemy
+					spawnParticle(int32(enemies[j].position.X), int32(enemies[j].position.Y), 10, 10, 40, 1.0)
 					enemies = append(enemies[:j], enemies[j+1:]...)
 					j--
 				}
@@ -217,10 +237,35 @@ func checkCollisions() {
 	}
 }
 
+func drawBG(c int, x, y []float32) {
+	// change radius to random for bubble effect  change time and stuff (rand.Float32()*2)+10, float32(50)*rand.Float32()
+	// form circles in line: rl.DrawCircleLines(int32(x[i]/2), int32(x[i]), 2, rl.LightGray)
+
+	for i := range c {
+		rl.DrawCircleLines(int32(x[i]), int32(y[i]), 10, rl.LightGray)
+		rl.DrawCircleLines(int32(x[i]/2), int32(y[i]), 2, rl.LightGray)
+		rl.DrawCircle(int32(x[i]/0.2*8), int32(y[i]), float32(rand.Intn(2)), rl.Gold)
+	}
+}
+
+func randomCoords(c int) ([]float32, []float32) {
+
+	x := make([]float32, c)
+
+	y := make([]float32, c)
+
+	for i := range c {
+		x[i] = float32(rand.Intn(screenWidth))
+		y[i] = float32(rand.Intn(screenWidth))
+	}
+
+	return x, y
+}
+
 func draw() {
 	rl.BeginDrawing()
-	rl.ClearBackground(rl.DarkGray)
-
+	rl.ClearBackground(black)
+	drawBG(circles, bgX, bgY)
 	player.Draw()
 
 	for _, enemy := range enemies {
@@ -232,7 +277,7 @@ func draw() {
 	}
 
 	// Draw player health
-	rl.DrawText(fmt.Sprintf("Health: %d", player.health), 10, 10, 20, rl.Black)
+	rl.DrawText(fmt.Sprintf("Health: %d", player.health), 10, 10, 20, rl.RayWhite)
 
 	rl.EndDrawing()
 }
