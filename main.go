@@ -8,6 +8,8 @@ import (
 var (
 	screenWidth  int32 = 800
 	screenHeight int32 = 450
+	seaBlue            = rl.NewColor(2, 42, 51, 255)
+	seaWhite           = rl.NewColor(224, 244, 245, 255)
 )
 
 type Segment struct {
@@ -39,7 +41,7 @@ func (s *Segment) Draw() {
 }
 
 // Creature
-func NewCreature(length int32, speed, radius float32) *Creature {
+func NewCreature(length int32, speed, radius float32, color rl.Color) *Creature {
 	var c Creature
 	c.len = length
 	c.body = make([]Segment, length)
@@ -47,7 +49,7 @@ func NewCreature(length int32, speed, radius float32) *Creature {
 	r1 := radius
 	for i := 0; i < int(c.len); i++ {
 		r := r1 - float32(i)*(r1/(float32(length)-1))
-		c.body[i] = Segment{float32(screenWidth)/2 - float32(i)*r1, float32(screenHeight) / 2, 0, r, r, rl.RayWhite}
+		c.body[i] = Segment{float32(screenWidth)/2 - float32(i)*r1, float32(screenHeight) / 2, 0, r, r, color}
 	}
 	return &c
 }
@@ -66,6 +68,13 @@ func (c *Creature) Draw() {
 		seg := c.body[i]
 		seg.Draw()
 		if i == 0 {
+			rl.DrawCircle(int32(seg.x), int32(seg.y), seg.radius, seg.color)
+			leftEye := rl.NewVector2(seg.x+(seg.distance-5)*math.Cos(seg.angle-0.25*math.Pi), seg.y+(seg.distance-5)*math.Sin(seg.angle-0.25*math.Pi))
+			rightEye := rl.NewVector2(seg.x+(seg.distance-5)*math.Cos(seg.angle+0.25*math.Pi), seg.y+(seg.distance-5)*math.Sin(seg.angle+0.25*math.Pi))
+			rl.DrawCircleV(leftEye, 5, rl.RayWhite) // Eyeball
+			rl.DrawCircleV(leftEye, 3, rl.Black)    // Iris
+			rl.DrawCircleV(rightEye, 5, rl.RayWhite)
+			rl.DrawCircleV(rightEye, 3, rl.Black)
 			continue
 		}
 		prev := c.body[i-1]
@@ -73,13 +82,14 @@ func (c *Creature) Draw() {
 		leftY1 := seg.y + seg.radius*math.Sin(seg.angle-0.5*math.Pi)
 		leftX2 := prev.x + prev.radius*math.Cos(prev.angle-0.5*math.Pi)
 		leftY2 := prev.y + prev.radius*math.Sin(prev.angle-0.5*math.Pi)
-		rl.DrawLine(int32(leftX1), int32(leftY1), int32(leftX2), int32(leftY2), rl.Purple)
+		rl.DrawLine(int32(leftX1), int32(leftY1), int32(leftX2), int32(leftY2), seg.color)
 
 		rightX1 := seg.x + seg.radius*math.Cos(seg.angle+0.5*math.Pi)
 		rightY1 := seg.y + seg.radius*math.Sin(seg.angle+0.5*math.Pi)
 		rightX2 := prev.x + prev.radius*math.Cos(prev.angle+0.5*math.Pi)
 		rightY2 := prev.y + prev.radius*math.Sin(prev.angle+0.5*math.Pi)
-		rl.DrawLine(int32(rightX1), int32(rightY1), int32(rightX2), int32(rightY2), rl.Purple)
+		rl.DrawLine(int32(rightX1), int32(rightY1), int32(rightX2), int32(rightY2), seg.color)
+
 	}
 
 }
@@ -93,7 +103,7 @@ func main() {
 	rl.SetTargetFPS(60) // Set our game to run at 60 frames-per-second
 	//--------------------------------------------------------------------------------------
 
-	creature := NewCreature(20, 2, 20)
+	creature := NewCreature(20, 3, 20, seaWhite)
 
 	// Main game loop
 	for !rl.WindowShouldClose() { // Detect window close button or ESC key
@@ -104,7 +114,7 @@ func main() {
 		// Draw
 		//----------------------------------------------------------------------------------
 		rl.BeginDrawing()
-		rl.ClearBackground(rl.Black)
+		rl.ClearBackground(seaBlue)
 
 		creature.Draw()
 
