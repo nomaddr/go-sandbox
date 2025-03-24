@@ -1,131 +1,280 @@
 package main
 
 import (
-	math "github.com/chewxy/math32"
+	"fmt"
+	"math"
+	"math/rand"
+
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-var (
-	screenWidth  int32 = 800
-	screenHeight int32 = 450
-	seaBlue            = rl.NewColor(2, 42, 51, 255)
-	seaWhite           = rl.NewColor(224, 244, 245, 255)
+type GameObject interface {
+	Update()
+	Draw()
+}
+
+type Player struct {
+	position                            rl.Vector2
+	atlas                               rl.Texture2D
+	src, dest                           rl.Rectangle
+	speed                               float32
+	health, weapon, curFrame, numFrames int
+}
+
+type Enemy struct {
+	position rl.Vector2
+	speed    float32
+	health   int
+}
+
+type Projectile struct {
+	position rl.Vector2
+	velocity rl.Vector2
+	speed    float32
+	radius   float32
+}
+
+const (
+	screenWidth  = 800
+	screenHeight = 450
 )
 
-type Segment struct {
-	x, y                    float32
-	angle, distance, radius float32
-	color                   rl.Color
-}
-
-type Creature struct {
-	body  []Segment
-	len   int32
-	speed float32
-}
-
-func (s *Segment) Update(prev Segment) {
-	s.angle = math.Atan2(prev.y-s.y, prev.x-s.x)
-	d := math.Sqrt(math.Pow(prev.x-s.x, 2) + math.Pow(prev.y-s.y, 2))
-	if d > s.distance {
-		delta := d - s.distance
-		s.x += delta * math.Cos(s.angle)
-		s.y += delta * math.Sin(s.angle)
-	}
-}
-
-func (s *Segment) Draw() {
-	//rl.DrawCircleLines(int32(s.x), int32(s.y), s.radius, s.color)
-	endPos := rl.NewVector2(s.x+s.distance*math.Cos(s.angle), s.y+s.distance*math.Sin(s.angle))
-	rl.DrawLineV(rl.NewVector2(s.x, s.y), endPos, s.color) //rl.NewVector2(s.x+s.radius, s.y+s.radius), s.color)
-}
-
-// Creature
-func NewCreature(length int32, speed, radius float32, color rl.Color) *Creature {
-	var c Creature
-	c.len = length
-	c.body = make([]Segment, length)
-	c.speed = speed
-	r1 := radius
-	for i := 0; i < int(c.len); i++ {
-		r := r1 - float32(i)*(r1/(float32(length)-1))
-		c.body[i] = Segment{float32(screenWidth)/2 - float32(i)*r1, float32(screenHeight) / 2, 0, r, r, color}
-	}
-	return &c
-}
-
-func (c *Creature) Update() {
-	c.body[0].angle = math.Atan2(rl.GetMousePosition().Y-c.body[0].y, rl.GetMousePosition().X-c.body[0].x)
-	c.body[0].x += c.speed * math.Cos(c.body[0].angle)
-	c.body[0].y += c.speed * math.Sin(c.body[0].angle)
-	for i := int32(1); i < c.len; i++ {
-		c.body[i].Update(c.body[i-1])
-	}
-}
-
-func (c *Creature) Draw() {
-	for i := int32(0); i < c.len; i++ {
-		seg := c.body[i]
-		seg.Draw()
-		if i == 0 {
-			rl.DrawCircle(int32(seg.x), int32(seg.y), seg.radius, seg.color)
-			leftEye := rl.NewVector2(seg.x+(seg.distance-5)*math.Cos(seg.angle-0.25*math.Pi), seg.y+(seg.distance-5)*math.Sin(seg.angle-0.25*math.Pi))
-			rightEye := rl.NewVector2(seg.x+(seg.distance-5)*math.Cos(seg.angle+0.25*math.Pi), seg.y+(seg.distance-5)*math.Sin(seg.angle+0.25*math.Pi))
-			rl.DrawCircleV(leftEye, 5, rl.RayWhite) // Eyeball
-			rl.DrawCircleV(leftEye, 3, rl.Black)    // Iris
-			rl.DrawCircleV(rightEye, 5, rl.RayWhite)
-			rl.DrawCircleV(rightEye, 3, rl.Black)
-			continue
-		}
-		prev := c.body[i-1]
-		leftX1 := seg.x + seg.radius*math.Cos(seg.angle-0.5*math.Pi)
-		leftY1 := seg.y + seg.radius*math.Sin(seg.angle-0.5*math.Pi)
-		leftX2 := prev.x + prev.radius*math.Cos(prev.angle-0.5*math.Pi)
-		leftY2 := prev.y + prev.radius*math.Sin(prev.angle-0.5*math.Pi)
-		rl.DrawLine(int32(leftX1), int32(leftY1), int32(leftX2), int32(leftY2), seg.color)
-
-		rightX1 := seg.x + seg.radius*math.Cos(seg.angle+0.5*math.Pi)
-		rightY1 := seg.y + seg.radius*math.Sin(seg.angle+0.5*math.Pi)
-		rightX2 := prev.x + prev.radius*math.Cos(prev.angle+0.5*math.Pi)
-		rightY2 := prev.y + prev.radius*math.Sin(prev.angle+0.5*math.Pi)
-		rl.DrawLine(int32(rightX1), int32(rightY1), int32(rightX2), int32(rightY2), seg.color)
-
-	}
-
-}
+var (
+	player      *Player
+	enemies     []*Enemy
+	projectiles []*Projectile
+	red         = rl.NewColor(146, 33, 95, 100)
+	purple      = rl.NewColor(89, 12, 104, 100)
+	black       = rl.NewColor(0, 8, 40, 100)
+)
 
 func main() {
-	// Initialization
-	//--------------------------------------------------------------------------------------
+	rl.InitWindow(screenWidth, screenHeight, "Top-Down Shooter")
+	rl.SetTargetFPS(60)
 
-	rl.InitWindow(screenWidth, screenHeight, "Food and Mouse Game")
+	player = NewPlayer(200)
 
-	rl.SetTargetFPS(60) // Set our game to run at 60 frames-per-second
-	//--------------------------------------------------------------------------------------
-
-	creature := NewCreature(20, 3, 20, seaWhite)
-
-	// Main game loop
-	for !rl.WindowShouldClose() { // Detect window close button or ESC key
-		// Update
-		//----------------------------------------------------------------------------------
-		creature.Update()
-		//----------------------------------------------------------------------------------
-		// Draw
-		//----------------------------------------------------------------------------------
-		rl.BeginDrawing()
-		rl.ClearBackground(seaBlue)
-
-		creature.Draw()
-
-		rl.DrawFPS(10, 10)
-
-		rl.EndDrawing()
-		//----------------------------------------------------------------------------------
+	// Spawn initial enemies
+	for i := 0; i < 5; i++ {
+		enemies = append(enemies, NewSimpleEnemy())
 	}
 
-	// De-Initialization
-	//--------------------------------------------------------------------------------------
-	rl.CloseWindow() // Close window and OpenGL context
-	//--------------------------------------------------------------------------------------
+	for !rl.WindowShouldClose() {
+		update()
+		draw()
+	}
+
+	rl.CloseWindow()
+}
+
+func update() {
+	player.Update()
+
+	for i := 0; i < len(enemies); i++ {
+		enemies[i].Update()
+	}
+
+	for i := 0; i < len(projectiles); i++ {
+		projectiles[i].Update()
+	}
+
+	checkCollisions()
+}
+
+func draw() {
+	rl.BeginDrawing()
+	rl.ClearBackground(black)
+
+	player.Draw()
+
+	for _, enemy := range enemies {
+		enemy.Draw()
+	}
+
+	for _, projectile := range projectiles {
+		projectile.Draw()
+	}
+
+	// Draw player health
+	rl.DrawText(fmt.Sprintf("Health: %d", player.health), 10, 10, 20, rl.Black)
+
+	rl.EndDrawing()
+}
+
+func NewSimpleEnemy() *Enemy {
+	return &Enemy{
+		position: rl.NewVector2(float32(rand.Intn(screenWidth)), float32(rand.Intn(screenHeight))),
+		speed:    20,
+		health:   20,
+	}
+}
+
+func NewEnemy(position rl.Vector2, speed float32, health int) *Enemy {
+	return &Enemy{
+		position: position,
+		speed:    speed,
+		health:   health,
+	}
+}
+
+func NewPlayer(speed float32) *Player {
+	p := new(Player)
+	p.position = rl.NewVector2(screenWidth/2, screenHeight/2)
+	p.speed = speed
+	p.health = 100
+	p.atlas = rl.LoadTexture("res/idle2.png")
+	p.numFrames = 6
+	p.src = rl.NewRectangle(0, 0, float32(p.atlas.Width)/float32(p.numFrames), float32(p.atlas.Height))
+	p.dest = rl.NewRectangle(p.position.X, p.position.Y, p.src.Width*2, p.src.Height*2)
+
+	return p
+}
+
+func (p *Player) Update() {
+
+	if rl.IsKeyDown(rl.KeyD) {
+		p.position.X += p.speed * rl.GetFrameTime()
+	}
+	if rl.IsKeyDown(rl.KeyA) {
+		p.position.X -= p.speed * rl.GetFrameTime()
+	}
+	if rl.IsKeyDown(rl.KeyW) {
+		p.position.Y -= p.speed * rl.GetFrameTime()
+	}
+	if rl.IsKeyDown(rl.KeyS) {
+		p.position.Y += p.speed * rl.GetFrameTime()
+	}
+
+	if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+		p.Shoot()
+	}
+	player.dest.X = player.position.X
+	player.dest.Y = player.position.Y
+}
+
+func (p *Player) Draw() {
+	rl.DrawCircleV(p.position, 20, purple)
+	rl.DrawCircleLines(int32(p.position.X), int32(p.position.Y), 20, red)
+
+	//rl.DrawTexturePro(player.atlas, player.src, player.dest, rl.Vector2{player.dest.Width / 2, player.dest.Height / 2}, 1, rl.White)
+	//rl.DrawRectangleLines(int32(dest.X), int32(dest.Y), int32(dest.Width), int32(dest.Height), rl.Green)
+}
+
+func (p *Player) Shoot() {
+	mousePos := rl.GetMousePosition()
+	direction := rl.Vector2Subtract(mousePos, p.position)
+	distance := float32(math.Sqrt(float64(direction.X*direction.X + direction.Y*direction.Y)))
+	var weaponSpeed float32
+	switch p.weapon {
+	case 0:
+		weaponSpeed = 1 // no weapon
+	default:
+		weaponSpeed = 100
+	}
+	direction = rl.Vector2Scale(direction, weaponSpeed/distance)
+
+	projectile := &Projectile{
+		position: p.position,
+		velocity: direction,
+		radius:   3,
+	}
+	projectiles = append(projectiles, projectile)
+}
+
+func (e *Enemy) moveTo(pos rl.Vector2) {
+	direction := rl.Vector2Subtract(pos, e.position)
+	distance := float32(math.Sqrt(float64(direction.X*direction.X + direction.Y*direction.Y)))
+	direction = rl.Vector2Scale(direction, e.speed*rl.GetFrameTime()/distance)
+	e.position = rl.Vector2Add(e.position, direction)
+}
+
+func (e *Enemy) Update() {
+	e.moveTo(player.position)
+}
+
+func (e *Enemy) Draw() {
+	rl.DrawCircleV(e.position, 15, red)
+}
+
+func (e *Enemy) IsCollidingWithProjectile(p *Projectile) bool {
+	return rl.CheckCollisionCircles(e.position, 15, p.position, p.radius)
+}
+
+func (p *Projectile) Update() {
+	p.position = rl.Vector2Add(p.position, p.velocity)
+}
+
+func (p *Projectile) Draw() {
+	rl.DrawCircleV(p.position, p.radius, rl.RayWhite)
+
+}
+
+// returns direction by subtracting end-start
+func GetDirection(start, end rl.Vector2) rl.Vector2 {
+	return rl.NewVector2(end.X-start.X, end.Y-start.Y) // Vector A->B = B-A
+}
+
+// returns normalized direction - useful for distance
+func GetDirectionNorm(start, end rl.Vector2) rl.Vector2 {
+	dir := rl.NewVector2(end.X-start.X, end.Y-start.Y)
+	return rl.Vector2Normalize(dir)
+}
+
+func GetMousePosNormal() rl.Vector2 {
+	mousePos := rl.GetMousePosition()
+	dir := GetDirection(player.position, mousePos)
+	return rl.Vector2Normalize(dir)
+}
+
+func GetMousePosOffset(offset float32) rl.Vector2 {
+	direction := GetMousePosNormal()
+	result := rl.NewVector2(player.position.X+direction.X*offset, player.position.Y+direction.Y*offset)
+	return result
+}
+
+func checkCollisions() {
+	// Check player-enemy collisions
+	for i := range enemies {
+		if rl.CheckCollisionCircles(player.position, 20, enemies[i].position, 15) {
+			player.health -= 10
+			if player.health <= 0 {
+				player.health = 0
+				// Handle player death (e.g., reset game, show game over screen)
+			}
+		}
+	}
+
+	// Check projectile-enemy collisions
+	for i := 0; i < len(projectiles); i++ {
+		for j := 0; j < len(enemies); j++ {
+			if enemies[j].IsCollidingWithProjectile(projectiles[i]) {
+				// Remove projectile
+				projectiles = append(projectiles[:i], projectiles[i+1:]...)
+				i--
+
+				// Damage enemy
+				enemies[j].health -= 10
+				if enemies[j].health <= 0 {
+					// Remove enemy
+					enemies = append(enemies[:j], enemies[j+1:]...)
+					j--
+				}
+				break
+			}
+		}
+	}
+
+	// Remove projectiles that go off-screen
+	for i := 0; i < len(projectiles); i++ {
+		if projectiles[i].position.X < 0 || projectiles[i].position.X > screenWidth ||
+			projectiles[i].position.Y < 0 || projectiles[i].position.Y > screenHeight {
+			projectiles = append(projectiles[:i], projectiles[i+1:]...)
+			i--
+		}
+	}
+}
+
+// Get the angle in degrees for rotation
+func GetAngle(v rl.Vector2) float32 {
+	return float32(math.Atan2(float64(v.Y), float64(v.X)) * (180.0 / math.Pi))
 }
