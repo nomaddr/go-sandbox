@@ -46,9 +46,22 @@ var (
 	red         = rl.NewColor(146, 33, 95, 100)
 	purple      = rl.NewColor(89, 12, 104, 100)
 	black       = rl.NewColor(0, 8, 40, 100)
+	textures    []rl.Texture2D
 )
 
 func main() {
+
+	Init()
+
+	for !rl.WindowShouldClose() {
+		Update()
+		Draw()
+	}
+
+	rl.CloseWindow()
+}
+
+func Init() {
 	rl.InitWindow(screenWidth, screenHeight, "Top-Down Shooter")
 	rl.SetTargetFPS(60)
 
@@ -59,15 +72,9 @@ func main() {
 		enemies = append(enemies, NewSimpleEnemy())
 	}
 
-	for !rl.WindowShouldClose() {
-		update()
-		draw()
-	}
-
-	rl.CloseWindow()
 }
 
-func update() {
+func Update() {
 	player.Update()
 
 	for i := 0; i < len(enemies); i++ {
@@ -81,7 +88,7 @@ func update() {
 	checkCollisions()
 }
 
-func draw() {
+func Draw() {
 	rl.BeginDrawing()
 	rl.ClearBackground(black)
 
@@ -242,6 +249,14 @@ func checkCollisions() {
 				// Handle player death (e.g., reset game, show game over screen)
 			}
 		}
+	}
+
+	// Check enemy-enemy collision
+	for i := 1; i < len(enemies); i++ {
+		if rl.CheckCollisionCircles(enemies[i].position, 15, enemies[i-1].position, 15) {
+
+		}
+
 	}
 
 	// Check projectile-enemy collisions
