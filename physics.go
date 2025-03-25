@@ -1,87 +1,58 @@
 package main
 
 import (
-	"fmt"
+	"math"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 const (
-	screenWidth  = 800
-	screenHeight = 450
+	maxVertices int32 = 100
 )
 
-var (
-	player      *Player
-	enemies     []*Enemy
-	projectiles []*Projectile
+type Polygon struct {
+	vertices []rl.Vector2
+}
 
-	poly Polygon
+// NewPolygon: Creates and returns a new pointer to a Polygon
+// composed of the passed in points.  Points are
+// considered to be in order such that the last point
+// forms an edge with the first point.
+// credit - https://github.com/kellydunn/golang-geo/blob/master/polygon.go
+func NewPolygon(points []rl.Vector2) *Polygon {
+	return &Polygon{vertices: points}
+}
 
-	palette   = rl.LoadImage("res/palettes/rust-gold-8-1x.png")
-	colors    = rl.LoadImageColors(palette)
-	playerCol = colors[4]
-	enemyCol  = rl.Red
-	bgColor   = colors[7]
-)
+// Add: Appends the passed in contour to the current Polygon.
+func (p *Polygon) Add(vertex rl.Vector2) {
+	p.vertices = append(p.vertices, vertex)
+}
 
-func Init() {
-	rl.InitWindow(screenWidth, screenHeight, "Top-Down Shooter")
-	rl.SetTargetFPS(60)
+func (p *Polygon) Draw() {
+	for i, v := range p.vertices {
 
-	player = NewPlayer(200)
-
-	va := rl.NewVector2(105, 200)
-	vb := rl.NewVector2(100, 100)
-	vc := rl.NewVector2(200, 100)
-	vd := rl.NewVector2(300, 300)
-
-	verts := []rl.Vector2{va, vb, vc, vd}
-
-	poly = *NewPolygon(verts)
-
-	// Spawn initial enemies
-	for i := 0; i < 5; i++ {
-		enemies = append(enemies, NewSimpleEnemy())
+		if i == len(p.vertices)-1 {
+			rl.DrawCircleV(v, 5, rl.Orange)
+			rl.DrawLineEx(v, p.vertices[0], 3, rl.Green)
+			break
+		}
+		rl.DrawCircleV(v, 5, rl.Orange)
+		rl.DrawLineEx(v, p.vertices[i+1], 3, rl.Green)
 	}
 }
 
-func Update() {
-	player.Update()
+func FindMinSeperation(a, b Polygon) float32 {
+	seperation := float32(math.MinInt32)
 
-	for _, enemy := range enemies {
-		enemy.Update()
-	}
+	// for i, va := range a.vertices {
+	// 	normal :=
+	// }
 
-	for _, projectile := range projectiles {
-		projectile.Update()
-	}
-
-	checkCollisions()
+	return seperation
 }
 
-func Draw() {
-	rl.BeginDrawing()
-	rl.ClearBackground(bgColor)
-
-	player.Draw()
-
-	for _, enemy := range enemies {
-		enemy.Draw()
-	}
-
-	for _, projectile := range projectiles {
-		projectile.Draw()
-	}
-
-	rl.DrawText(fmt.Sprintf("Health: %d", player.health), 10, 10, 20, rl.RayWhite)
-
-	poly.Draw()
-
-	rl.EndDrawing()
-}
-
-func checkCollisions() {
+// very simple not useful collision check
+func CheckCollisions() {
 	// Check player-enemy collisions
 	for i := range enemies {
 		if rl.CheckCollisionCircles(player.position, 20, enemies[i].position, 15) {
