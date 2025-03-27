@@ -8,16 +8,17 @@ import (
 )
 
 type Player struct {
-	position rl.Vector2
-	speed    float32
-	health   int
-	weapon   int
+	position     rl.Vector2
+	velocity     rl.Vector2
+	acceleration float32
+	speed        float32 // max acceleration / speed
+	health       float32
 }
 
 type Enemy struct {
 	position rl.Vector2
 	speed    float32
-	health   int
+	health   float32
 }
 
 type Projectile struct {
@@ -26,27 +27,48 @@ type Projectile struct {
 	radius   float32
 }
 
-func NewPlayer(speed float32) *Player {
+type Shape struct {
+	position rl.Vector2
+	center   rl.Vector2
+	shape    Polygon
+}
+
+func (s *Shape) Update() {
+	s.center = s.shape.Centroid()
+	s.position = rl.GetMousePosition()
+}
+
+func NewPlayer(position rl.Vector2, speed float32) *Player {
 	return &Player{
-		position: rl.NewVector2(screenWidth/2, screenHeight/2),
-		speed:    speed,
-		health:   100,
+		position:     position,
+		velocity:     rl.NewVector2(0, 0),
+		acceleration: 0,
+		speed:        speed,
+		health:       100,
 	}
 }
 
 func (p *Player) Update() {
+	// Movement ##############
 	if rl.IsKeyDown(rl.KeyD) {
-		p.position.X += p.speed * rl.GetFrameTime()
+		p.velocity.X = 1
 	}
 	if rl.IsKeyDown(rl.KeyA) {
-		p.position.X -= p.speed * rl.GetFrameTime()
+		p.velocity.X = -1
 	}
 	if rl.IsKeyDown(rl.KeyW) {
-		p.position.Y -= p.speed * rl.GetFrameTime()
+		p.velocity.Y = -1
 	}
 	if rl.IsKeyDown(rl.KeyS) {
-		p.position.Y += p.speed * rl.GetFrameTime()
+		p.velocity.Y = 1
 	}
+	// Normalize "velocity" and add to position, then reset to 0
+	p.velocity = rl.Vector2Normalize(p.velocity)
+	p.position.X += p.velocity.X * p.speed * rl.GetFrameTime()
+	p.position.Y += p.velocity.Y * p.speed * rl.GetFrameTime()
+	p.velocity.X = 0
+	p.velocity.Y = 0
+	// #######################
 
 	if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 		p.Shoot()
@@ -62,11 +84,7 @@ func (p *Player) Shoot() {
 	direction := rl.Vector2Subtract(mousePos, p.position)
 	distance := float32(math.Sqrt(float64(direction.X*direction.X + direction.Y*direction.Y)))
 
-	weaponSpeed := float32(100)
-	if p.weapon == 0 {
-		weaponSpeed = 1 // No weapon
-	}
-
+	weaponSpeed := float32(10)
 	direction = rl.Vector2Scale(direction, weaponSpeed/distance)
 
 	projectiles = append(projectiles, &Projectile{

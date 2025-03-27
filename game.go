@@ -9,6 +9,7 @@ import (
 const (
 	screenWidth  = 800
 	screenHeight = 450
+	defaultSpeed = 10
 )
 
 var (
@@ -16,7 +17,7 @@ var (
 	enemies     []*Enemy
 	projectiles []*Projectile
 
-	poly Polygon
+	poly, p1, p2 Polygon
 
 	palette   = rl.LoadImage("res/palettes/rust-gold-8-1x.png")
 	colors    = rl.LoadImageColors(palette)
@@ -29,7 +30,25 @@ func Init() {
 	rl.InitWindow(screenWidth, screenHeight, "Top-Down Shooter")
 	rl.SetTargetFPS(60)
 
-	player = NewPlayer(200)
+	player = NewPlayer(rl.NewVector2(screenWidth/2, screenHeight/2), 200)
+
+	p1 = Polygon{
+		Vertices: []rl.Vector2{
+			{100, 100},
+			{150, 100},
+			{150, 150},
+			{100, 150},
+		},
+	}
+
+	p2 = Polygon{
+		Vertices: []rl.Vector2{
+			{120, 120},
+			{170, 120},
+			{170, 170},
+			{120, 170},
+		},
+	}
 
 	va := rl.NewVector2(105, 200)
 	vb := rl.NewVector2(100, 100)
@@ -58,6 +77,19 @@ func Update() {
 	}
 
 	checkCollisions()
+
+	if SatCollision(p1, p2) {
+		fmt.Println("Collision detected!")
+	} else {
+		fmt.Println("No collision.")
+	}
+
+	sep, axis := HandleSatCollision(p1, p2)
+
+	if sep > 0 {
+		fmt.Println("Collision detected! %d axis: %d", sep, axis.X)
+	}
+
 }
 
 func Draw() {
@@ -77,6 +109,8 @@ func Draw() {
 	rl.DrawText(fmt.Sprintf("Health: %d", player.health), 10, 10, 20, rl.RayWhite)
 
 	poly.Draw()
+	p1.Draw()
+	p2.Draw()
 
 	rl.EndDrawing()
 }
